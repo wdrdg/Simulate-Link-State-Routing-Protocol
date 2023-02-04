@@ -17,7 +17,7 @@ public class Router {
 
   public Router(Configuration config) {
     rd.simulatedIPAddress = config.getString("socs.network.router.ip");
-    lsd = new LinkStateDatabase(rd);
+    lsd = new LinkStateDatabase(rd);afds
   }
 
   /**
