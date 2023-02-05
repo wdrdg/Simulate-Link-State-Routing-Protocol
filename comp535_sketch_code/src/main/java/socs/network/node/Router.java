@@ -241,47 +241,6 @@ public class Router {
     }
   }
 
-//  static class RequestHandler extends Thread{
-//    private Socket server = null;
-//    RequestHandler(ServerSocket serverSocket) throws IOException {
-//      server = serverSocket.accept();
-//    }
-//
-//    public void run() {
-//      try{
-//        while (true) {
-//          RequestListener requestListener = new RequestListener(server);
-//          requestListener.start();
-//        }
-//      } catch (Exception e) {
-//        e.printStackTrace();
-//      }
-//    }
-//  }
-//
-//  static class RequestListener extends Thread{
-//    Socket Server = null;
-//
-//    RequestListener(Socket server){
-//      Server = server;
-//    }
-//
-//    public void run() {
-//      try {
-//        ObjectInputStream in = new ObjectInputStream(Server.getInputStream());
-//        SOSPFPacket message = (SOSPFPacket) in.readObject();
-//        if (message != null){
-//          return;
-//        }else{
-//          //TODO: handle the message.
-//        }
-//      } catch (IOException e) {
-//        throw new RuntimeException(e);
-//      } catch (ClassNotFoundException e) {
-//        throw new RuntimeException(e);
-//      }
-//    }
-//  }
 
 }
 
