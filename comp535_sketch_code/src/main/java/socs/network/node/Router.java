@@ -1,9 +1,11 @@
 package socs.network.node;
 
+import socs.network.message.SOSPFPacket;
 import socs.network.util.Configuration;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
 
 
 public class Router {
@@ -14,10 +16,47 @@ public class Router {
 
   //assuming that all routers are with 4 ports
   Link[] ports = new Link[4];
+  short processPort = 30000;
+  ServerSocket serverSocket = null;
 
-  public Router(Configuration config) {
+  Socket server = null;
+  String processIP = "localhost";
+//  RequestHandler requestHandler = null;
+
+
+  public Router(Configuration config) throws IOException {
+    System.out.println("begin");
     rd.simulatedIPAddress = config.getString("socs.network.router.ip");
-    lsd = new LinkStateDatabase(rd);afds
+    initPort();
+    rd.processPortNumber = processPort;
+    rd.processIPAddress = processIP;
+    lsd = new LinkStateDatabase(rd);
+    System.out.println(serverSocket);
+
+
+    new Thread(new Runnable() {
+      public void run() {
+        try {
+          requestHandler();
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      }
+    }).start();
+//    requestHandler = new RequestHandler(serverSocket);
+//    RequestHandler.start();
+
+
+  }
+
+  public void initPort(){
+    while(serverSocket==null){
+      try{
+        serverSocket = new ServerSocket(processPort);
+      } catch (IOException e) {
+        processPort ++;
+      }
+    }
   }
 
   /**
@@ -49,7 +88,34 @@ public class Router {
    * NOTE: this command should not trigger link database synchronization
    */
   private void processAttach(String processIP, short processPort,
-                             String simulatedIP, short weight) {
+                             String simulatedIP, short weight) throws IOException {
+
+    //TODO: 1.check whether connect with itself. 2.check whether the target router already attached.
+
+    //endTODO
+    System.out.println("Your attach request has been");
+    //pack the message
+    SOSPFPacket message = new SOSPFPacket();
+    message.srcProcessIP = processIP;
+    message.srcProcessPort = processPort;
+    message.srcIP = rd.simulatedIPAddress;
+    message.dstIP = simulatedIP;
+    message.sospfType = 0;
+
+    //send message
+    sendMessage(message, processIP, processPort);
+
+
+
+
+
+
+  }
+
+  private void sendMessage(SOSPFPacket message, String processIP, short processPort) throws IOException {
+    Socket client = new Socket(processIP, processPort);
+    ObjectOutputStream os = new ObjectOutputStream(client.getOutputStream());
+    os.writeObject(message);
 
   }
 
@@ -59,7 +125,36 @@ public class Router {
    * For example: when router2 tries to attach router1. Router1 can decide whether it will accept this request. 
    * The intuition is that if router2 is an unknown/anomaly router, it is always safe to reject the attached request from router2.
    */
-  private void requestHandler() {
+  private void requestHandler() throws IOException {
+
+    while(true){
+      server = serverSocket.accept();
+      System.out.println("aaa");
+      new Thread(new Runnable() {
+        public void run() {
+          try {
+            ObjectInputStream in = new ObjectInputStream(server.getInputStream());
+            SOSPFPacket receviedMessage = (SOSPFPacket) in.readObject();
+            if (receviedMessage != null){
+              System.out.println(receviedMessage);
+              analysisMessage(receviedMessage);
+            }else{
+              return;
+            }
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+          }
+        }
+      }).start();
+    }
+
+  }
+
+  private void analysisMessage(SOSPFPacket message){
+
+    //TODO: handle different kind of message
 
   }
 
@@ -146,4 +241,6 @@ public class Router {
     }
   }
 
+
 }
+
