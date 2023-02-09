@@ -343,6 +343,7 @@ public class Router {
    */
   private void processStart() throws IOException {
     for (int x=0; x<ports.length; x++){
+      boolean need_start = true;
       Link link = ports[x];
       String processIP;
       short processPort;
@@ -352,6 +353,11 @@ public class Router {
         SOSPFPacket message = new SOSPFPacket();
         if (rd.equals(rd1)){
           // send hello to rd2
+          if (rd2.status == RouterStatus.TWO_WAY){
+            need_start = false;
+            System.out.println(rd2.simulatedIPAddress + " has been set to TWO_WAY");
+            continue;
+          }
           rd2.status = RouterStatus.INIT;
           message.srcProcessIP = rd1.processIPAddress;
           message.srcProcessPort = rd1.processPortNumber;
@@ -360,10 +366,16 @@ public class Router {
           message.sospfType = 0;
           processIP = rd2.processIPAddress;
           processPort = rd2.processPortNumber;
+          //send message
           
         }
         else{
           // send hello to rd1
+          if (rd1.status == RouterStatus.TWO_WAY){
+            need_start = false;
+            System.out.println(rd1.simulatedIPAddress + " has been set to TWO_WAY");
+            continue;
+          }
           rd1.status = RouterStatus.INIT;
           message.srcProcessIP = rd2.processIPAddress;
           message.srcProcessPort = rd2.processPortNumber;
@@ -372,9 +384,12 @@ public class Router {
           message.sospfType = 0;
           processIP = rd1.processIPAddress;
           processPort = rd1.processPortNumber;
+          //send message
         }
-      //send message
-      sendMessage(message, processIP, processPort); 
+      if (need_start){
+        sendMessage(message, processIP, processPort);
+      }
+
       }   
     }
   }
