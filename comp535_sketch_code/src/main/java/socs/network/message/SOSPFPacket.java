@@ -15,9 +15,9 @@ public class SOSPFPacket implements Serializable {
   public String dstIP;
 
   //common header
-  public short sospfType; //0 - HELLO, 1 - LinkState Update
+  public short sospfType = -1; //0 - HELLO, 1 - LinkState Update
   public String routerID;
-  public short attachRequest;
+  public short attachRequest = -1;
 
   //used by HELLO message to identify the sender of the message
   //e.g. when router A sends HELLO to its neighbor, it has to fill this field with its own

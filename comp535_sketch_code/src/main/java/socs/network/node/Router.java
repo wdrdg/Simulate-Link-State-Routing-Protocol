@@ -22,14 +22,14 @@ public class Router {
 
   Socket server = null;
   String processIP = "localhost";
-  InputStreamReader input =  new InputStreamReader(System.in);
-  BufferedReader reader = new BufferedReader(input);
+  
   volatile Boolean alreadyattach = false;
 //  RequestHandler requestHandler = null;
+  volatile int attachAgreement = -1;
 
 
   public Router(Configuration config) throws IOException {
-    System.out.println("begin");
+    // System.out.println("begin");
     rd.simulatedIPAddress = config.getString("socs.network.router.ip");
     initPort();
     rd.processPortNumber = processPort;
@@ -114,10 +114,8 @@ public class Router {
         //check: 1.check whether connect with itself. 2.check whether the target router already attached.
         RouterDescription rd1 = link.router1;
         RouterDescription rd2 = link.router2;
-        if ((rd.simulatedIPAddress.equals(rd1.simulatedIPAddress) && rd.processPortNumber == rd1.processPortNumber 
-        && processIP.equals(rd2.simulatedIPAddress) && processPort == rd2.processPortNumber) || 
-        (rd.simulatedIPAddress.equals(rd2.simulatedIPAddress) && rd.processPortNumber == rd2.processPortNumber 
-        && processIP.equals(rd1.simulatedIPAddress) && processPort == rd1.processPortNumber))
+        if ((rd.simulatedIPAddress.equals(rd1.simulatedIPAddress)&& simulatedIP.equals(rd2.simulatedIPAddress) ) || 
+        (rd.simulatedIPAddress.equals(rd2.simulatedIPAddress) && simulatedIP.equals(rd1.simulatedIPAddress) ))
         {
           is_attach = true;
           break;
@@ -141,8 +139,8 @@ public class Router {
       SOSPFPacket message = new SOSPFPacket();
       message.srcProcessIP = rd.processIPAddress;
       message.srcProcessPort = rd.processPortNumber;
-      message.srcIP = simulatedIP;
-      message.dstIP = processIP;
+      message.srcIP = rd.simulatedIPAddress;
+      message.dstIP = simulatedIP;
       message.attachRequest = 0;
 
       //send message
@@ -159,8 +157,8 @@ public class Router {
   }
 
   private void sendMessage(SOSPFPacket message, String processIP, short processPort) throws IOException {
-    System.out.println("Sending now!");
-    System.out.println(message.sospfType);
+    // System.out.println("Sending now!");
+    // System.out.println(message.sospfType);
     Socket client = new Socket(processIP, processPort);
     ObjectOutputStream os = new ObjectOutputStream(client.getOutputStream());
     os.writeObject(message);
@@ -173,7 +171,6 @@ public class Router {
    * The intuition is that if router2 is an unknown/anomaly router, it is always safe to reject the attached request from router2.
    */
   private void requestHandler() throws IOException {
-    System.out.println("Handling Now!");
     while(true){
       server = serverSocket.accept();
       //System.out.println("aaa");
@@ -197,8 +194,7 @@ public class Router {
                 System.out.println("Your ports are all occupied. The attach request is rejected.");
               }
               else{
-                analysisMessage(receviedMessage, reader);
-                System.out.print(">> ");
+                analysisMessage(receviedMessage);
               }
             
             }else{
@@ -216,7 +212,7 @@ public class Router {
 
   }
 
-  private void analysisMessage(SOSPFPacket message, BufferedReader reader) throws IOException{
+  private void analysisMessage(SOSPFPacket message) throws IOException{
     //TODO: handle different kind of message
     String srcProcessIP = message.srcProcessIP;
     short srcProcessPort = message.srcProcessPort;
@@ -228,16 +224,20 @@ public class Router {
     // process attach
     if (attachRequest == 0) {
       // router receivie the message
-      System.out.println("Received HELLO from "+srcProcessIP+";"+"\nDo you accept this attach request? (Y/N)");
-      String if_accpet = reader.readLine();
+      System.out.println("Received HELLO from "+srcIP+";"+"\nDo you accept this attach request? (Y/N)");
+      while (attachAgreement==-1){
+        continue;
+      }
+      int if_accpet = attachAgreement;
+      attachAgreement = -1;
       
-      System.out.println("HI "+if_accpet);
+      // System.out.println("HI "+if_accpet);
       
-      if (if_accpet.equals("N")){
+      if (if_accpet==0){
         System.out.println("You reject this attach request;");
         message.srcProcessIP = null;
       }
-      else if (if_accpet.equals("Y")){ 
+      else if (if_accpet==1){ 
         // add a new link
         System.out.println("You accept the the attach request;");
         // rd.status = RouterStatus.INIT;
@@ -253,14 +253,14 @@ public class Router {
             break;
           }
         }
-        message.srcProcessIP = srcIP;
+        message.srcProcessIP = rd.processIPAddress;
         message.srcProcessPort = rd.processPortNumber;
         message.srcIP = dstIP;
         message.dstIP = srcIP;
       }
-      System.out.println("Hello World");
+      // System.out.println("Hello World");
       message.attachRequest = 1;
-      processIP = srcIP;
+      processIP = srcProcessIP;
       processPort = srcProcessPort;
       //send message
       sendMessage(message, processIP, processPort);
@@ -272,8 +272,8 @@ public class Router {
       }
       // add a new link
       else{
-        rd.status = RouterStatus.INIT;
-        RouterDescription rd2 = new RouterDescription();
+        // rd.status = RouterStatus.INIT;
+        RouterDescription rd2 = new RouterDescription(); 
         rd2.processIPAddress = srcProcessIP;
         rd2.processPortNumber = srcProcessPort;
         rd2.simulatedIPAddress = srcIP;
@@ -293,26 +293,46 @@ public class Router {
 
     // process start
     if (sospfType == 0){
-      System.out.println("Received HELLO from "+srcProcessIP+";");
       for (int x=0; x<ports.length; x++){
         Link link = ports[x];
         if (link != null) {
           RouterDescription rd1 = link.router1;
           RouterDescription rd2 = link.router2;
+          message.srcProcessIP = rd.processIPAddress;
+          message.srcProcessPort = rd.processPortNumber;
+          message.srcIP = dstIP;
+          message.dstIP = srcIP;
           if (rd.equals(rd1)){
-            rd2.status = RouterStatus.INIT;
-            System.out.println("Set "+srcProcessIP+"STATE to INIT;");
+            if (rd2.status == null ){
+              System.out.println("Received HELLO from "+srcIP+";");
+              rd2.status = RouterStatus.INIT;
+              System.out.println("Set "+srcIP+" STATE to INIT;");
+              sendMessage(message, srcProcessIP, srcProcessPort);
+            }
+            else if (rd2.status == RouterStatus.INIT ){
+              System.out.println("Received HELLO from "+srcIP+";");
+              rd2.status = RouterStatus.TWO_WAY;
+              System.out.println("Set "+srcIP+" STATE to TWO_WAY;");
+              sendMessage(message, srcProcessIP, srcProcessPort);
+            }
           }
           else{
-            rd2.status = RouterStatus.INIT;
+            if (rd1.status == null ){
+              System.out.println("Received HELLO from "+srcIP+";");
+              rd1.status = RouterStatus.INIT;
+              System.out.println("Set "+srcIP+" STATE to INIT;");
+              sendMessage(message, srcProcessIP, srcProcessPort);
+            }
+            else if (rd1.status == RouterStatus.INIT ){
+              System.out.println("Received HELLO from "+srcIP+";");
+              rd1.status = RouterStatus.TWO_WAY;
+              System.out.println("Set "+srcIP+" STATE to TWO_WAY;");
+              sendMessage(message, srcProcessIP, srcProcessPort);
+            }
           }
+          
         }
       }
-      
-      
-    }
-    else if (sospfType == 1){
-
     }
 
   }
@@ -324,30 +344,34 @@ public class Router {
   private void processStart() throws IOException {
     for (int x=0; x<ports.length; x++){
       Link link = ports[x];
+      String processIP;
+      short processPort;
       if (link != null) {
         RouterDescription rd1 = link.router1;
         RouterDescription rd2 = link.router2;
         SOSPFPacket message = new SOSPFPacket();
         if (rd.equals(rd1)){
-          
+          // send hello to rd2
+          rd2.status = RouterStatus.INIT;
           message.srcProcessIP = rd1.processIPAddress;
           message.srcProcessPort = rd1.processPortNumber;
           message.srcIP = rd1.simulatedIPAddress;
-          message.dstIP = rd2.processIPAddress;
+          message.dstIP = rd2.simulatedIPAddress;
           message.sospfType = 0;
-          String processIP = rd2.processIPAddress;
-          short processPort = rd2.processPortNumber;
+          processIP = rd2.processIPAddress;
+          processPort = rd2.processPortNumber;
           
         }
         else{
-          
+          // send hello to rd1
+          rd1.status = RouterStatus.INIT;
           message.srcProcessIP = rd2.processIPAddress;
           message.srcProcessPort = rd2.processPortNumber;
           message.srcIP = rd2.simulatedIPAddress;
-          message.dstIP = rd1.processIPAddress;
+          message.dstIP = rd1.simulatedIPAddress;
           message.sospfType = 0;
-          String processIP = rd1.processIPAddress;
-          short processPort = rd1.processPortNumber;
+          processIP = rd1.processIPAddress;
+          processPort = rd1.processPortNumber;
         }
       //send message
       sendMessage(message, processIP, processPort); 
@@ -393,10 +417,10 @@ public class Router {
 
   public void terminal() {
     try {
-      // InputStreamReader isReader = new InputStreamReader(System.in);
-      // BufferedReader br = new BufferedReader(isReader);
+      InputStreamReader isReader = new InputStreamReader(System.in);
+      BufferedReader br = new BufferedReader(isReader);
       System.out.print(">> ");
-      String command = reader.readLine();
+      String command = br.readLine();
       while (true) {
         if (command.startsWith("detect ")) {
           String[] cmdLine = command.split(" ");
@@ -419,15 +443,22 @@ public class Router {
         } else if (command.equals("neighbors")) {
           //output neighbors
           processNeighbors();
-        } else {
+        }else if (command.equalsIgnoreCase("Y")) {
+          //output neighbors
+          attachAgreement=1;
+        }else if (command.equalsIgnoreCase("N")) {
+          //output neighbors
+          attachAgreement=0;
+        }
+         else {
           //invalid command
           break;
         }
-        // System.out.print(">> ");
-        command = reader.readLine();
+        System.out.print(">> ");
+        command = br.readLine();
       }
-      // input.close();
-      // reader.close();
+      isReader.close();
+      br.close();
     } catch (Exception e) {
       e.printStackTrace();
     }
