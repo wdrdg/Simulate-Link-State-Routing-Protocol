@@ -18,6 +18,19 @@ public class LinkStateDatabase {
     _store.put(l.linkStateID, l);
   }
 
+  public synchronized void updateLSA(LSA lsa, String simulatedIP){
+    if (_store.get(simulatedIP)==null){
+      _store.put(simulatedIP, lsa);
+    }else {
+      LSA currentLsa = _store.get(simulatedIP);
+      if (currentLsa.lsaSeqNumber < lsa.lsaSeqNumber) {
+        _store.put(simulatedIP, lsa);
+      }
+    }
+  }
+
+
+
   /**
    * output the shortest path from this router to the destination with the given IP address
    */
