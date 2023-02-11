@@ -11,6 +11,16 @@ public class LSA implements Serializable {
 
   public LinkedList<LinkDescription> links = new LinkedList<LinkDescription>();
 
+  public synchronized void addLink(LinkDescription ld){
+    links.add(ld);
+    lsaSeqNumber++;
+  }
+
+  public synchronized void deleteLink(LinkDescription ld){
+    links.remove(ld);
+    lsaSeqNumber++;
+  }
+
   @Override
   public String toString() {
     StringBuffer sb = new StringBuffer();
