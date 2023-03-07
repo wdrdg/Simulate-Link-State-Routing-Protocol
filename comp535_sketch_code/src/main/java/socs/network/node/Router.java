@@ -142,6 +142,7 @@ public class Router {
       message.srcIP = rd.simulatedIPAddress;
       message.dstIP = simulatedIP;
       message.attachRequest = 0;
+      message.weight = wait_weight;
 
       //send message
       sendMessage(message, processIP, processPort);
@@ -245,6 +246,12 @@ public class Router {
         rd2.processPortNumber = srcProcessPort;
         rd2.simulatedIPAddress = srcIP;
 
+        LinkDescription newLd = new LinkDescription();
+        newLd.linkID = rd2.simulatedIPAddress;
+        newLd.portNum = rd2.processPortNumber;
+        newLd.tosMetrics = message.weight;   //wait_weight;
+        lsd._store.get(rd.simulatedIPAddress).addLink(newLd);
+
         Link l = new Link(rd, rd2);
         for (int x = 0; x < ports.length; x++) {
           if (ports[x] == null) {
@@ -339,7 +346,30 @@ public class Router {
         }
       }
     } else if (sospfType == 1) {
-      lsd.updateLSA(message.lsaArray.get(0), message.srcIP);
+      boolean needUpdate = lsd.updateLSA(message.lsaArray.get(0), message.lsaArray.get(0).linkStateID); //message.srcIP);
+      if (needUpdate){
+        for (Link link : ports) {
+          if (link != null) {
+            RouterDescription rd1 = link.router1;
+            RouterDescription rd2 = link.router2;
+            if (rd2.simulatedIPAddress.equals(message.srcIP)){
+              continue;
+            }
+            SOSPFPacket messageBroadcast = new SOSPFPacket();
+            messageBroadcast.srcProcessIP = rd1.processIPAddress;
+            messageBroadcast.srcProcessPort = rd1.processPortNumber;
+            messageBroadcast.srcIP = rd1.simulatedIPAddress;
+            messageBroadcast.dstIP = rd2.simulatedIPAddress;
+            messageBroadcast.sospfType = 1;
+            processIP = rd2.processIPAddress;
+            processPort = rd2.processPortNumber;
+            messageBroadcast.lsaArray = new Vector<LSA>();
+            messageBroadcast.lsaArray.add(message.lsaArray.get(0));
+            sendMessage(messageBroadcast, processIP, processPort);
+          }
+        }
+      }
+
     }
 
 
@@ -425,6 +455,7 @@ public class Router {
         //send message
         sendMessage(message, processIP, processPort);
       }
+      Thread.sleep(100);
     }
   }
 
@@ -452,6 +483,7 @@ public class Router {
     for (Link l : ports) {
       if (l!=null)System.out.println (l.router2.simulatedIPAddress);
     }
+    System.out.println(lsd._store);
 
 
   }
