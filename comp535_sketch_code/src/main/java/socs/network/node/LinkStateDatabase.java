@@ -35,7 +35,7 @@ public class LinkStateDatabase {
 
   Boolean exist(LinkedList<LinkDescription> l, String ip){
     for (LinkDescription ld: l){
-      if (ld.linkID == ip){
+      if (ld.linkID.equals(ip)){
         return true;
       }
     }
@@ -44,7 +44,7 @@ public class LinkStateDatabase {
 
   Integer getDistance(LinkedList<LinkDescription> l, String ip){
     for (LinkDescription ld: l){
-      if (ld.linkID == ip){
+      if (ld.linkID.equals(ip)){
         return ld.tosMetrics;
       }
     }
@@ -61,7 +61,6 @@ public class LinkStateDatabase {
     HashMap<String, String> parent = new HashMap<String, String>();
     int size = _store.size();
     String min_ip = null;
-    parent.put(rd.simulatedIPAddress,null);
 
     for (String ip: _store.keySet()){
       distance.put(ip, Integer.MAX_VALUE);
@@ -71,6 +70,7 @@ public class LinkStateDatabase {
       distance.put(ld.linkID, ld.tosMetrics);
       parent.put(ld.linkID, rd.simulatedIPAddress);
     }
+    parent.put(rd.simulatedIPAddress, null);
 
     for (int i=0; i<size-1; i++){
       // get the index to explore
@@ -97,8 +97,8 @@ public class LinkStateDatabase {
       
     }
     String p = parent.get(destinationIP);
+
     String path = parent.get(destinationIP) + "->(" + Integer.toString(getDistance(_store.get(p).links, destinationIP)) + ") " + destinationIP;
-   
     while (parent.get(p)!=null){
       path = parent.get(p) + "->(" + Integer.toString(getDistance(_store.get(parent.get(p)).links, p)) + ") " + path;
       p = parent.get(p);
