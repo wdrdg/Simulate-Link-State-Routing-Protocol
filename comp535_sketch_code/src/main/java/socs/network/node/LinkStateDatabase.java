@@ -61,6 +61,9 @@ public class LinkStateDatabase {
     HashMap<String, String> parent = new HashMap<String, String>();
     int size = _store.size();
     String min_ip = null;
+    if (_store.get(destinationIP) == null){
+      return "Not Found";
+    }
 
     for (String ip: _store.keySet()){
       distance.put(ip, Integer.MAX_VALUE);
@@ -97,6 +100,9 @@ public class LinkStateDatabase {
       
     }
     String p = parent.get(destinationIP);
+    if (p == null){
+      return "Not Found";
+    }
 
     String path = parent.get(destinationIP) + "->(" + Integer.toString(getDistance(_store.get(p).links, destinationIP)) + ") " + destinationIP;
     while (parent.get(p)!=null){
@@ -134,4 +140,29 @@ public class LinkStateDatabase {
     return sb.toString();
   }
 
+  public synchronized void removeRouter(String simulatedIP) {
+    for (LSA lsa: _store.values()) {
+      for (LinkDescription ld : lsa.links) {
+        if (ld.linkID.equals(simulatedIP)) {
+          lsa.deleteLink(ld);
+          break;
+        }
+      }
+    }
+    _store.remove(simulatedIP);
+  }
+  public synchronized void removeLink(Link link) {
+    for (LinkDescription ld : _store.get(link.router1.simulatedIPAddress).links) {
+      if (ld.linkID.equals(link.router2.simulatedIPAddress)) {
+        _store.get(link.router1.simulatedIPAddress).deleteLink(ld);
+        break;
+      }
+    }
+    for (LinkDescription ld : _store.get(link.router2.simulatedIPAddress).links) {
+      if (ld.linkID.equals(link.router1.simulatedIPAddress)) {
+        _store.get(link.router2.simulatedIPAddress).deleteLink(ld);
+        break;
+      }
+    }
+  }
 }
