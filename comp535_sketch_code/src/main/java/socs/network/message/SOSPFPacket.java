@@ -15,7 +15,7 @@ public class SOSPFPacket implements Serializable {
   public String dstIP;
 
   //common header
-  public short sospfType = -1; //0 - HELLO, 1 - LinkState Update
+  public short sospfType = -1; //0 - HELLO, 1 - LinkState Update, 2 - Disconnect, 3 - Quit
   public String routerID;
   public short attachRequest = -1;
   public int weight = 0;
@@ -26,5 +26,5 @@ public class SOSPFPacket implements Serializable {
 
   //used by LSAUPDATE
   public Vector<LSA> lsaArray = null;
-
+  public String QuitIP = null;
 }

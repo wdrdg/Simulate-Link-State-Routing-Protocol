@@ -31,6 +31,8 @@ public class Router {
 
   volatile int wait_weight = -1;
 
+  volatile  boolean isStarted = false;
+
 
   public Router(Configuration config) throws IOException {
     // System.out.println("begin");
@@ -87,7 +89,33 @@ public class Router {
    *
    * @param portNumber the port number which the link attaches at
    */
-  private void processDisconnect(short portNumber) {
+  private void processDisconnect(short portNumber) throws IOException, InterruptedException {
+    portNumber = (short) (portNumber+30000);
+    if (portNumber == rd.processPortNumber) {
+      System.out.println("You are trying to disconnect to yourself! You cannot disconnect!");
+      return;
+    }
+    for (int x = 0; x < ports.length; x++) {
+      Link link = ports[x];
+      if (link != null) {
+        if (link.router2.processPortNumber == portNumber) {
+          SOSPFPacket message = new SOSPFPacket();
+          message.srcProcessIP = rd.processIPAddress;
+          message.srcProcessPort = rd.processPortNumber;
+          message.srcIP = rd.simulatedIPAddress;
+          message.dstIP = link.router2.simulatedIPAddress;
+          message.sospfType = 2;
+          message.routerID = rd.simulatedIPAddress;
+          sendMessage(message, link.router2.processIPAddress, link.router2.processPortNumber);
+          ports[x] = null;
+          System.out.println("You have disconnected with " + link.router2.simulatedIPAddress);
+          lsd.removeLink(link);
+          synchronizeLinkDatabase();
+          return;
+        }
+      }
+    }
+    System.out.println("There are no routers to disconnect!");
 
   }
 
@@ -195,7 +223,11 @@ public class Router {
               if (is_full && receviedMessage.attachRequest!=-1) {
                 System.out.println("Your ports are all occupied. The attach request is rejected.");
               } else {
-                analysisMessage(receviedMessage);
+                try {
+                  analysisMessage(receviedMessage);
+                } catch (InterruptedException e) {
+                  throw new RuntimeException(e);
+                }
               }
 
             } else {
@@ -213,7 +245,7 @@ public class Router {
 
   }
 
-  private void analysisMessage(SOSPFPacket message) throws IOException {
+  private void analysisMessage(SOSPFPacket message) throws IOException, InterruptedException {
     //TODO: handle different kind of message
     String srcProcessIP = message.srcProcessIP;
     short srcProcessPort = message.srcProcessPort;
@@ -223,6 +255,18 @@ public class Router {
     short attachRequest = message.attachRequest;
 
     // process attach
+    if (sospfType == 2) {
+        // router receivie the message
+        System.out.println("Received Disconnet from " + srcIP + ";" );
+        for (int x = 0; x < ports.length; x++) {
+          Link link = ports[x];
+          if (link != null) {
+            if (link.router2.processPortNumber == srcProcessPort) {
+              processDisconnect((short) (srcProcessPort-30000));
+            }
+          }
+        }
+    }
     if (attachRequest == 0) {
       // router receivie the message
       System.out.println("Received HELLO from " + srcIP + ";" + "\nDo you accept this attach request? (Y/N)");
@@ -289,7 +333,6 @@ public class Router {
             break;
           }
         }
-        alreadyattach = true;
 
         // add link to database
         LinkDescription newLd = new LinkDescription();
@@ -299,6 +342,7 @@ public class Router {
         lsd._store.get(rd.simulatedIPAddress).addLink(newLd);
 
         System.out.println("Your attach has been accpeted!");
+        alreadyattach = true;
       }
 
     }
@@ -328,6 +372,9 @@ public class Router {
               rd2.status = RouterStatus.TWO_WAY;
               System.out.println("Set " + srcIP + " STATE to TWO_WAY;");
               sendMessage(message, srcProcessIP, srcProcessPort);
+              if (isStarted){
+                synchronizeLinkDatabase();
+              }
             }
           } else {
             if (rd1.status == null) {
@@ -346,7 +393,10 @@ public class Router {
         }
       }
     } else if (sospfType == 1) {
-      boolean needUpdate = lsd.updateLSA(message.lsaArray.get(0), message.lsaArray.get(0).linkStateID); //message.srcIP);
+      boolean needUpdate = false;
+      for (LSA lsa: message.lsaArray) {
+        if(lsd.updateLSA(lsa, lsa.linkStateID)){needUpdate=true;} //message.srcIP);
+      }
       if (needUpdate){
         for (Link link : ports) {
           if (link != null) {
@@ -363,10 +413,13 @@ public class Router {
             messageBroadcast.sospfType = 1;
             processIP = rd2.processIPAddress;
             processPort = rd2.processPortNumber;
+//            messageBroadcast.lsaArray = new Vector<LSA>();
+//            messageBroadcast.lsaArray.add(message.lsaArray.get(0));
             messageBroadcast.lsaArray = new Vector<LSA>();
-            messageBroadcast.lsaArray.add(message.lsaArray.get(0));
+            messageBroadcast.lsaArray.addAll(lsd._store.values());
             sendMessage(messageBroadcast, processIP, processPort);
           }
+          Thread.sleep(100);
         }
       }
 
@@ -451,14 +504,47 @@ public class Router {
 //        System.out.println(lsd._store.keySet());
 //        System.out.println(rd.simulatedIPAddress);
         message.lsaArray = new Vector<LSA>();
-        message.lsaArray.add(lsd._store.get(rd.simulatedIPAddress));
+        message.lsaArray.addAll(lsd._store.values());
+        //message.lsaArray.add(lsd._store.get(rd.simulatedIPAddress));
+        //message.lsaArray = (Vector<LSA>) lsd._store.values();
+        //send message
+        sendMessage(message, processIP, processPort);
+      }
+      Thread.sleep(100);
+    }
+    isStarted = true;
+  }
+
+
+
+  private void synchronizeLinkDatabase() throws IOException, InterruptedException {
+    for (int x = 0; x < ports.length; x++) {
+      Link link = ports[x];
+      String processIP;
+      short processPort;
+      if (link != null) {
+        RouterDescription rd1 = link.router1;
+        RouterDescription rd2 = link.router2;
+        SOSPFPacket message = new SOSPFPacket();
+
+        message.srcProcessIP = rd1.processIPAddress;
+        message.srcProcessPort = rd1.processPortNumber;
+        message.srcIP = rd1.simulatedIPAddress;
+        message.dstIP = rd2.simulatedIPAddress;
+        processIP = rd2.processIPAddress;
+        processPort = rd2.processPortNumber;
+        message.sospfType = 1;
+//        System.out.println(lsd._store.keySet());
+//        System.out.println(rd.simulatedIPAddress);
+        message.lsaArray = new Vector<LSA>();
+        //message.lsaArray.add(lsd._store.get(rd.simulatedIPAddress));
+        message.lsaArray.addAll(lsd._store.values());
         //send message
         sendMessage(message, processIP, processPort);
       }
       Thread.sleep(100);
     }
   }
-
 
 
     
@@ -472,7 +558,13 @@ public class Router {
    * This command does trigger the link database synchronization
    */
   private void processConnect(String processIP, short processPort,
-                              String simulatedIP, short weight) {
+                              String simulatedIP, short weight) throws IOException, InterruptedException {
+    processAttach(processIP, processPort, simulatedIP, weight);
+    while(alreadyattach == false){
+      continue;
+    }
+    alreadyattach = false;
+    processStart();
 
   }
 
@@ -492,15 +584,45 @@ public class Router {
    * disconnect with all neighbors and quit the program
    */
   private void processQuit() {
+    lsd.removeRouter(rd.simulatedIPAddress);
 
+    for (int x = 0; x < ports.length; x++) {
+      Link link = ports[x];
+      String processIP;
+      short processPort;
+      if (link != null) {
+        RouterDescription rd1 = link.router1;
+        RouterDescription rd2 = link.router2;
+        SOSPFPacket message = new SOSPFPacket();
+
+        message.srcProcessIP = rd1.processIPAddress;
+        message.srcProcessPort = rd1.processPortNumber;
+        message.srcIP = rd1.simulatedIPAddress;
+        message.dstIP = rd2.simulatedIPAddress;
+        processIP = rd2.processIPAddress;
+        processPort = rd2.processPortNumber;
+        message.sospfType = 2;
+        message.lsaArray = new Vector<LSA>();
+        message.lsaArray.addAll(lsd._store.values());
+        //send message
+        try {
+          sendMessage(message, processIP, processPort);
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+      }
+    }
+    System.exit(0);
   }
 
   /**
    * update the weight of an attached link
    */
   private void updateWeight(String processIP, short processPort,
-                             String simulatedIP, short weight){
-
+                             String simulatedIP, short weight) throws IOException, InterruptedException {
+    processDisconnect((short) (processPort-30000));
+    Thread.sleep(100);
+    processConnect(processIP, processPort, simulatedIP, weight);
   }
 
   public void terminal() {
@@ -524,11 +646,15 @@ public class Router {
                   cmdLine[3], Short.parseShort(cmdLine[4]));
         } else if (command.equals("start")) {
           processStart();
-        } else if (command.equals("connect ")) {
+        } else if (command.startsWith("connect ")) {
           String[] cmdLine = command.split(" ");
           processConnect(cmdLine[1], Short.parseShort(cmdLine[2]),
                   cmdLine[3], Short.parseShort(cmdLine[4]));
-        } else if (command.equals("neighbors")) {
+        } else if(command.startsWith("updateWeight ")){
+          String[] cmdLine = command.split(" ");
+          updateWeight(cmdLine[1], Short.parseShort(cmdLine[2]),
+                  cmdLine[3], Short.parseShort(cmdLine[4]));
+        }else if (command.equals("neighbors")) {
           //output neighbors
           processNeighbors();
         }else if (command.equalsIgnoreCase("Y")) {
