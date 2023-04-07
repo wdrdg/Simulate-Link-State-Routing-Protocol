@@ -115,7 +115,7 @@ public class Router {
         }
       }
     }
-
+    System.out.println("There are no routers to disconnect!");
 
   }
 
@@ -258,7 +258,14 @@ public class Router {
     if (sospfType == 2) {
         // router receivie the message
         System.out.println("Received Disconnet from " + srcIP + ";" );
-        processDisconnect((short) (srcProcessPort-30000));
+        for (int x = 0; x < ports.length; x++) {
+          Link link = ports[x];
+          if (link != null) {
+            if (link.router2.processPortNumber == srcProcessPort) {
+              processDisconnect((short) (srcProcessPort-30000));
+            }
+          }
+        }
     }
     if (attachRequest == 0) {
       // router receivie the message
@@ -614,6 +621,7 @@ public class Router {
   private void updateWeight(String processIP, short processPort,
                              String simulatedIP, short weight) throws IOException, InterruptedException {
     processDisconnect((short) (processPort-30000));
+    Thread.sleep(100);
     processConnect(processIP, processPort, simulatedIP, weight);
   }
 
